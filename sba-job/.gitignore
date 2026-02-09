@@ -4,12 +4,6 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-### macOS ###
-.DS_Store
-._*
-.Spotlight-V100
-.Trashes
-
 ### STS ###
 .apt_generated
 .classpath
@@ -20,9 +14,9 @@ target/
 .sts4-cache
 
 ### IntelliJ IDEA ###
-/.idea/
+.idea
 *.iws
-!sba-*/**/*.iml
+*.iml
 *.ipr
 
 ### NetBeans ###

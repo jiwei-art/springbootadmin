@@ -1,0 +1,6 @@
+/xueren/**
+
+/custom/**
+/customSub/**
+
+/price-watch/**
