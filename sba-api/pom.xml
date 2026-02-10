@@ -12,28 +12,15 @@
     <packaging>war</packaging>
     <name>sba-api</name>
     <description>sba-api</description>
-    <url/>
-    <licenses>
-        <license/>
-    </licenses>
-    <developers>
-        <developer/>
-    </developers>
-    <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
-    </scm>
+
     <properties>
         <java.version>21</java.version>
     </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.roborock</groupId>
             <artifactId>sba-repo</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
-            <classifier>classes</classifier>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
