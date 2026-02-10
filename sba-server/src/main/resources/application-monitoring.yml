@@ -1,0 +1,36 @@
+# 健康检查扩展配置
+management:
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState
+      
+  health:
+    # 数据库健康检查配置
+    db:
+      enabled: true
+      query: SELECT 1
+    # 磁盘空间健康检查
+    diskspace:
+      enabled: true
+      threshold: 10485760  # 10MB
+    
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,loggers
+
+# 自定义健康指标
+spring:
+  application:
+    name: sba-server
+    
+# 监控配置
+management.metrics.distribution.percentiles-histogram.http.server.requests: true
+management.metrics.enable.all: true
