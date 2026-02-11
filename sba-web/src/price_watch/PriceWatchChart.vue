@@ -61,7 +61,7 @@ export default {
       this.loading = true;
       try {
         // 调用后端接口获取价格数据
-        const response = await fetch(`http://localhost:7005/api/price-watch?intervalDays=${this.intervalDays}`);
+        const response = await fetch(`/api/api/price-watch?intervalDays=${this.intervalDays}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }

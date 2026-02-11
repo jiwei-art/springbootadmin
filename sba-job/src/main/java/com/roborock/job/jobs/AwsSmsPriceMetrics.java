@@ -1,5 +1,7 @@
 package com.roborock.job.jobs;
 
+import com.roborock.repo.dto.pricewatch.Channel;
+import com.roborock.repo.dto.pricewatch.Platform;
 import com.roborock.job.service.PriceWatchService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -45,7 +47,7 @@ public class AwsSmsPriceMetrics {
                     // 获取数组第一个对象的 domesticPrice
                     double price = transactionalArray.path(0).path("domesticPrice").asDouble();
                     // 执行 Prometheus 上报
-                    priceWatchService.insert(countryCode, price);
+                    priceWatchService.insert(Platform.AWS, Channel.SMS, countryCode, price);
                 }
             }
         } catch (Exception e) {

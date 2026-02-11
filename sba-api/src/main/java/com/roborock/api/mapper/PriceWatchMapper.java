@@ -1,5 +1,7 @@
 package com.roborock.api.mapper;
 
+import com.roborock.repo.dto.pricewatch.Channel;
+import com.roborock.repo.dto.pricewatch.Platform;
 import com.roborock.repo.dto.pricewatch.PriceWatchEntity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
@@ -9,9 +11,6 @@ import java.util.List;
 @Mapper
 public interface PriceWatchMapper {
 
-    @Select("SELECT * FROM T_PRICE_WATCH")
-    List<PriceWatchEntity> findAll();
-
-    @Select("SELECT * FROM T_PRICE_WATCH WHERE CREATE_TIME >= NOW() - INTERVAL '${days} DAYS' ORDER BY CREATE_TIME")
-    List<PriceWatchEntity> findByIntervalDays(int days);
+    @Select("SELECT * FROM T_PRICE_WATCH WHERE PLATFORM = ${platform} AND CHANNEL = ${channel} AND DATE >= NOW() - INTERVAL '${days} DAYS' ORDER BY DATE")
+    List<PriceWatchEntity> findByIntervalDays(Platform platform, Channel channel, int days);
 }
