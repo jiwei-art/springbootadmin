@@ -1,7 +1,7 @@
 package com.roborock.api.controller;
 
-import com.roborock.api.dto.entity.PriceWatchEntity;
 import com.roborock.api.service.PriceWatchService;
+import com.roborock.repo.dto.pricewatch.PriceWatchEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

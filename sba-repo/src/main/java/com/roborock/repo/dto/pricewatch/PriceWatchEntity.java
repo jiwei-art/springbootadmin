@@ -1,4 +1,4 @@
-package com.roborock.api.dto.entity;
+package com.roborock.repo.dto.pricewatch;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -8,9 +8,9 @@ import java.util.Date;
 @Getter
 @Setter
 public class PriceWatchEntity {
-    private String id;
+    private long id;
     private String countryCode;
-    private String price;
+    private double price;
     private Date createTime;
 
 }

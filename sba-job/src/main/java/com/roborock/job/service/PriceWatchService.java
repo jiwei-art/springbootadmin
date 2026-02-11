@@ -1,10 +1,9 @@
-package com.roborock.api.service;
+package com.roborock.job.service;
 
-import com.roborock.api.mapper.PriceWatchMapper;
+
+import com.roborock.job.mapper.PriceWatchMapper;
 import com.roborock.repo.dto.pricewatch.PriceWatchEntity;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Service
 public class PriceWatchService {
@@ -15,7 +14,10 @@ public class PriceWatchService {
         this.priceWatchMapper = priceWatchMapper;
     }
 
-    public List<PriceWatchEntity> getPriceWatchList(int intervalDays) {
-        return priceWatchMapper.findByIntervalDays(intervalDays);
+    public int insert(String countryCode, double price) {
+        PriceWatchEntity entity = new PriceWatchEntity();
+        entity.setPrice(price);
+        entity.setCountryCode(countryCode);
+        return priceWatchMapper.insert(entity);
     }
 }

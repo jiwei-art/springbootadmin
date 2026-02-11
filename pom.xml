@@ -16,6 +16,7 @@
         <module>sba-api</module>
         <module>sba-repo</module>
         <module>sba-web</module>
+        <module>sba-job</module>
     </modules>
 
     <properties>
@@ -58,12 +59,22 @@
                 <artifactId>sba-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.roborock</groupId>
+                <artifactId>sba-job</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <!-- Spring Boot 依赖管理 -->
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-tomcat</artifactId>
                 <version>${spring-boot.version}</version>
                 <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-http-client</artifactId>
+                <version>${spring-boot.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>

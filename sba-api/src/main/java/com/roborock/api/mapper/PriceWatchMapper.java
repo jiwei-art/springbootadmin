@@ -1,6 +1,6 @@
 package com.roborock.api.mapper;
 
-import com.roborock.api.dto.entity.PriceWatchEntity;
+import com.roborock.repo.dto.pricewatch.PriceWatchEntity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
