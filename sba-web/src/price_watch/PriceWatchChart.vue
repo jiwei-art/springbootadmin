@@ -3,18 +3,54 @@
     <div class="chart-header">
       <div class="title-section">
         <h1>全球价格监控</h1>
-        <span class="subtitle">各国价格变动趋势 (近{{ intervalDays }}天)</span>
+        <div class="filter-controls">
+          <div class="filter-item">
+            <label>平台</label>
+            <select v-model="platform" @change="fetchPriceData">
+              <option value="AWS">AWS</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label>通道</label>
+            <select v-model="channel" @change="fetchPriceData">
+              <option value="SMS">SMS</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label>天数</label>
+            <input type="number" v-model.number="intervalDays" @change="fetchPriceData" min="1" />
+          </div>
+        </div>
       </div>
-      <div class="controls">
+      <div class="status-info">
         <button @click="refreshData" :disabled="loading" class="refresh-btn">
-          {{ loading ? '加载中...' : '刷新数据' }}
+          {{ loading ? '刷新' : '手动刷新' }}
         </button>
       </div>
     </div>
 
-    <div ref="chartContainer" id="price-chart-container"></div>
+    <div class="grafana-legend">
+      <div
+          v-for="country in allCountries"
+          :key="country"
+          class="legend-item"
+          :class="{
+          'is-dimmed': selectedCountry && selectedCountry !== country,
+          'is-active': selectedCountry === country
+        }"
+          @click="handleLegendClick(country)"
+      >
+        <span class="color-pill" :style="{ backgroundColor: getColor(country) }"></span>
+        <span class="country-name">{{ country }}</span>
+      </div>
+    </div>
 
-    <div class="footer-info">数据更新时间: {{ lastUpdateTime }}</div>
+    <div ref="chartContainer" class="chart-canvas"></div>
+
+    <div class="footer-info">
+      <span v-if="selectedCountry" class="focus-hint">聚焦模式开启</span>
+      <span>数据更新于: {{ lastUpdateTime }}</span>
+    </div>
   </div>
 </template>
 
@@ -26,290 +62,177 @@ export default {
   data() {
     return {
       intervalDays: 10,
+      platform: 'AWS',
+      channel: 'SMS',
       priceData: [],
       loading: false,
+      selectedCountry: null,
+      allCountries: [],
       lastUpdateTime: '',
-      svg: null,
-      chartWidth: 0,
-      chartHeight: 0
+      colorScale: d3.scaleOrdinal(d3.schemeCategory10)
     };
   },
   mounted() {
-    this.initChart();
     this.fetchPriceData();
+    window.addEventListener('resize', this.renderWithCurrentData);
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.renderWithCurrentData);
   },
   methods: {
-    initChart() {
-      const container = this.$refs.chartContainer;
-      const margin = { top: 40, right: 100, bottom: 60, left: 80 };
-      const width = container.offsetWidth || 1000;
-      const height = 500;
-
-      this.chartWidth = width - margin.left - margin.right;
-      this.chartHeight = height - margin.top - margin.bottom;
-
-      // 清空容器并创建 SVG
-      d3.select(container).selectAll("*").remove();
-      this.svg = d3.select(container)
-          .append("svg")
-          .attr("width", width)
-          .attr("height", height)
-          .append("g")
-          .attr("transform", `translate(${margin.left},${margin.top})`);
+    handleLegendClick(country) {
+      this.selectedCountry = (this.selectedCountry === country) ? null : country;
+      this.renderWithCurrentData();
     },
+    getColor(country) { return this.colorScale(country); },
+
+    // 稳健的日期解析函数
+    parseDateStr(str) {
+      if (!str) return new Date();
+      // 处理 YYYY-MM-DD
+      const parts = str.split(/[-/]/);
+      if (parts.length >= 3) {
+        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return isNaN(d.getTime()) ? new Date() : d;
+      }
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? new Date() : d;
+    },
+
     async fetchPriceData() {
       this.loading = true;
       try {
-        // 调用后端接口获取价格数据
-        const response = await fetch(`/api/api/price-watch?intervalDays=${this.intervalDays}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        this.priceData = await response.json();
-        this.lastUpdateTime = new Date().toLocaleString('zh-CN');
-        this.processAndRenderData();
-      } catch (error) {
-        console.error('获取价格数据失败:', error);
+        const params = new URLSearchParams({
+          intervalDays: this.intervalDays,
+          platform: this.platform,
+          channel: this.channel
+        });
+        const response = await fetch(`/api/api/price-watch?${params.toString()}`);
+        const rawData = await response.json();
+
+        this.priceData = rawData.map(d => ({
+          ...d,
+          _dateObj: this.parseDateStr(d.date),
+          _priceVal: parseFloat(d.price) || 0
+        }));
+
+        this.allCountries = [...new Set(this.priceData.map(d => d.countryCode))].sort();
+        this.lastUpdateTime = new Date().toLocaleTimeString();
+        this.renderWithCurrentData();
+      } catch (e) {
+        console.error(e);
       } finally {
         this.loading = false;
       }
     },
-    processAndRenderData() {
-      if (!this.svg || this.priceData.length === 0) return;
 
-      // 按国家分组数据
-      const groupedData = d3.group(this.priceData, d => d.countryCode);
-      
-      // 准备绘图数据
-      const chartData = Array.from(groupedData, ([country, records]) => ({
-        country: country,
-        values: records.map(record => ({
-          date: new Date(record.createTime),
-          price: parseFloat(record.price)
-        })).sort((a, b) => a.date - b.date)
+    renderWithCurrentData() {
+      const container = this.$refs.chartContainer;
+      if (!container || !this.priceData.length) return;
+
+      const active = this.selectedCountry
+          ? this.priceData.filter(d => d.countryCode === this.selectedCountry)
+          : this.priceData;
+
+      const grouped = d3.group(active, d => d.countryCode);
+      const data = Array.from(grouped, ([country, records]) => ({
+        country,
+        values: records.map(r => ({ date: r._dateObj, price: r._priceVal })).sort((a,b) => a.date - b.date)
       }));
 
-      this.renderChart(chartData);
+      this.drawChart(data);
     },
-    renderChart(data) {
-      // 清除之前的图表元素
-      this.svg.selectAll("*").remove();
 
-      // 创建比例尺
-      const x = d3.scaleTime()
-          .domain([
-            d3.min(data, d => d3.min(d.values, v => v.date)),
-            d3.max(data, d => d3.max(d.values, v => v.date))
-          ])
-          .range([0, this.chartWidth]);
+    drawChart(data) {
+      const container = this.$refs.chartContainer;
+      const margin = { top: 20, right: 40, bottom: 40, left: 60 };
+      const width = container.offsetWidth - margin.left - margin.right;
+      const height = 450 - margin.top - margin.bottom;
 
-      const y = d3.scaleLinear()
-          .domain([
-            d3.min(data, d => d3.min(d.values, v => v.price)) * 0.95,
-            d3.max(data, d => d3.max(d.values, v => v.price)) * 1.05
-          ])
-          .range([this.chartHeight, 0]);
+      d3.select(container).selectAll("*").remove();
+      const svg = d3.select(container).append("svg")
+          .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom)
+          .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-      const color = d3.scaleOrdinal(d3.schemeCategory10);
+      const allPoints = data.flatMap(d => d.values);
+      const xExtent = d3.extent(allPoints, v => v.date);
+      const isSingleDay = xExtent[0].getTime() === xExtent[1].getTime();
 
-      // 添加坐标轴
-      this.svg.append("g")
-          .attr("class", "x-axis")
-          .attr("transform", `translate(0,${this.chartHeight})`)
-          .call(d3.axisBottom(x).tickFormat(d3.timeFormat("%m-%d")));
+      // 如果只有一天，X轴前后各延展半天
+      const xDomain = isSingleDay
+          ? [new Date(xExtent[0].getTime() - 43200000), new Date(xExtent[1].getTime() + 43200000)]
+          : xExtent;
 
-      this.svg.append("g")
-          .attr("class", "y-axis")
-          .call(d3.axisLeft(y).tickFormat(d => `¥${d.toLocaleString()}`));
+      const yMin = d3.min(allPoints, v => v.price);
+      const yMax = d3.max(allPoints, v => v.price);
+      const yDomain = yMin === yMax ? [yMin * 0.9, yMin * 1.1 || 1] : [yMin * 0.98, yMax * 1.02];
 
-      // 添加标题
-      this.svg.append("text")
-          .attr("x", this.chartWidth / 2)
-          .attr("y", -10)
-          .attr("text-anchor", "middle")
-          .style("font-size", "16px")
-          .style("font-weight", "bold")
-          .text("各国价格变动趋势");
+      const x = d3.scaleTime().domain(xDomain).range([0, width]);
+      const y = d3.scaleLinear().domain(yDomain).range([height, 0]);
 
-      // 绘制线条
-      const line = d3.line()
-          .x(d => x(d.date))
-          .y(d => y(d.price))
-          .curve(d3.curveMonotoneX);
+      // X轴处理：如果是单日，强制在中间画一个Tick
+      const xAxis = d3.axisBottom(x).tickFormat(d3.timeFormat("%m-%d")).tickSize(-height);
+      if (isSingleDay) xAxis.tickValues([xExtent[0]]);
 
-      const countries = this.svg.selectAll(".country-line")
-          .data(data)
-          .enter()
-          .append("g")
-          .attr("class", "country-line");
+      svg.append("g").attr("transform", `translate(0,${height})`).attr("class", "axis-grid").call(xAxis);
+      svg.append("g").attr("class", "axis-grid").call(d3.axisLeft(y).ticks(6).tickSize(-width));
 
-      // 添加路径线
-      countries.append("path")
-          .attr("class", "line")
-          .attr("d", d => line(d.values))
-          .attr("stroke", (d, i) => color(d.country))
-          .attr("stroke-width", 2)
-          .attr("fill", "none");
+      const line = d3.line().x(d => x(d.date)).y(d => y(d.price)).curve(d3.curveMonotoneX);
 
-      // 添加圆点
-      countries.selectAll(".dot")
-          .data(d => d.values.map(v => ({ ...v, country: d.country })))
-          .enter()
-          .append("circle")
-          .attr("class", "dot")
-          .attr("cx", d => x(d.date))
-          .attr("cy", d => y(d.price))
-          .attr("r", 4)
-          .attr("fill", d => color(d.country))
-          .on("mouseover", (event, d) => {
-            d3.select(event.target).attr("r", 6);
-            this.showTooltip(event, d);
-          })
-          .on("mouseout", (event) => {
-            d3.select(event.target).attr("r", 4);
-            this.hideTooltip();
-          });
+      const groups = svg.selectAll(".g").data(data).enter().append("g");
+      groups.append("path").attr("d", d => line(d.values)).attr("stroke", d => this.getColor(d.country)).attr("stroke-width", 2).attr("fill", "none");
 
-      // 添加国家标签
-      countries.append("text")
-          .datum(d => ({ country: d.country, value: d.values[d.values.length - 1] }))
-          .attr("transform", d => `translate(${x(d.value.date)},${y(d.value.price)})`)
-          .attr("x", 8)
-          .attr("dy", "0.35em")
-          .style("font-size", "12px")
-          .style("font-weight", "bold")
-          .text(d => d.country);
-
-      // 添加图例
-      const legend = this.svg.append("g")
-          .attr("class", "legend")
-          .attr("transform", `translate(${this.chartWidth + 20}, 20)`);
-
-      data.forEach((d, i) => {
-        const legendRow = legend.append("g")
-            .attr("transform", `translate(0, ${i * 20})`);
-
-        legendRow.append("rect")
-            .attr("width", 12)
-            .attr("height", 12)
-            .attr("fill", color(d.country));
-
-        legendRow.append("text")
-            .attr("x", 20)
-            .attr("y", 10)
-            .text(d.country)
-            .style("font-size", "12px");
-      });
+      groups.selectAll("circle").data(d => d.values.map(v => ({ ...v, country: d.country }))).enter().append("circle")
+          .attr("cx", d => x(d.date)).attr("cy", d => y(d.price)).attr("r", 5)
+          .attr("fill", d => this.getColor(d.country)).attr("stroke", "#fff").attr("stroke-width", 2)
+          .on("mouseover", (event, d) => this.showTooltip(event, d))
+          .on("mouseout", () => d3.selectAll(".custom-tooltip").remove());
     },
-    showTooltip(event, data) {
-      const tooltip = d3.select("body")
-          .append("div")
-          .attr("class", "tooltip")
-          .style("position", "absolute")
-          .style("background", "rgba(0, 0, 0, 0.8)")
-          .style("color", "white")
-          .style("padding", "8px")
-          .style("border-radius", "4px")
-          .style("pointer-events", "none")
-          .style("font-size", "12px");
 
-      tooltip.html(`
-        <div><strong>国家:</strong> ${data.country}</div>
-        <div><strong>价格:</strong> ¥${parseFloat(data.price).toLocaleString()}</div>
-        <div><strong>日期:</strong> ${data.date.toLocaleDateString('zh-CN')}</div>
-      `);
+    showTooltip(event, d) {
+      d3.selectAll(".custom-tooltip").remove();
+      if (!d || !d.date || isNaN(d.date.getTime())) return;
 
-      tooltip.style("left", (event.pageX + 10) + "px")
-             .style("top", (event.pageY - 10) + "px");
+      const format = (v) => String(v).padStart(2, '0');
+      const dateStr = `${d.date.getFullYear()}-${format(d.date.getMonth() + 1)}-${format(d.date.getDate())}`;
+
+      d3.select("body").append("div").attr("class", "custom-tooltip")
+          .style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 30) + "px")
+          .html(`
+          <div style="color:${this.getColor(d.country)};font-weight:bold;">${d.country}</div>
+          <div style="color:#333;margin:4px 0;">价格: <strong>¥${d.price.toFixed(4)}</strong></div>
+          <div style="font-size:11px;color:#666;">日期: ${dateStr}</div>
+        `);
     },
-    hideTooltip() {
-      d3.selectAll(".tooltip").remove();
-    },
-    refreshData() {
-      this.fetchPriceData();
-    }
+    refreshData() { this.selectedCountry = null; this.fetchPriceData(); }
   }
 };
 </script>
 
 <style scoped>
-.price-watch-chart {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
+.price-watch-chart { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); font-family: sans-serif; }
+.chart-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+.filter-controls { display: flex; gap: 15px; }
+.filter-item label { display: block; font-size: 11px; color: #007bff; font-weight: bold; margin-bottom: 4px; }
+.filter-item select, .filter-item input { background: #f8f9fa; border: 1px solid #ddd; padding: 6px; border-radius: 4px; }
+.grafana-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; background: #f8f9fa; padding: 10px; border-radius: 4px; }
+.legend-item { display: flex; align-items: center; padding: 4px 8px; cursor: pointer; font-size: 12px; border: 1px solid #eee; background: #fff; border-radius: 4px; }
+.legend-item.is-active { border-color: #007bff; color: #007bff; }
+.legend-item.is-dimmed { opacity: 0.2; filter: grayscale(1); }
+.color-pill { width: 12px; height: 4px; margin-right: 6px; }
+.refresh-btn { background: #007bff; color: #fff; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
+.chart-canvas { width: 100%; height: 450px; }
+.footer-info { display: flex; justify-content: space-between; font-size: 11px; color: #999; margin-top: 10px; }
+:deep(.axis-grid) line { stroke: #eee; }
+:deep(.axis-grid) text { fill: #666; font-size: 11px; }
+:deep(.axis-grid) .domain { display: none; }
+</style>
 
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
-}
-
-.title-section h1 {
-  margin: 0;
-  color: #333;
-  font-size: 1.8rem;
-}
-
-.subtitle {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.refresh-btn {
-  background: #007bff;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.refresh-btn:hover:not(:disabled) {
-  background: #0056b3;
-}
-
-.refresh-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-#price-chart-container {
-  width: 100%;
-  height: 500px;
-  margin: 20px 0;
-}
-
-.footer-info {
-  text-align: right;
-  color: #888;
-  font-size: 0.8rem;
-  margin-top: 10px;
-}
-
-/* D3 图表样式 */
-:deep(.axis) text {
-  fill: #666;
-  font-size: 12px;
-}
-
-:deep(.axis) path,
-:deep(.axis) line {
-  stroke: #ddd;
-}
-
-:deep(.line) {
-  fill: none;
-  stroke-width: 2px;
-}
-
-:deep(.dot) {
-  stroke: white;
-  stroke-width: 1px;
+<style>
+.custom-tooltip {
+  position: absolute; background: #fff; border: 1px solid #ddd; padding: 10px;
+  font-size: 12px; pointer-events: none; z-index: 10000; border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 </style>
