@@ -13,6 +13,8 @@ public class PriceWatchEntity {
     private Channel channel;
     private String countryCode;
     private double price;
+    private Date date;
     private Date createTime;
+    private Date updateTime;
 
 }

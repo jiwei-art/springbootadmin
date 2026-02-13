@@ -70,40 +70,9 @@ export default {
         this.processAndRenderData();
       } catch (error) {
         console.error('获取价格数据失败:', error);
-        // 模拟数据用于演示
-        this.generateMockData();
       } finally {
         this.loading = false;
       }
-    },
-    generateMockData() {
-      // 生成模拟数据用于演示
-      const countries = ['US', 'CN', 'JP', 'DE', 'UK', 'FR', 'KR', 'IN'];
-      const basePrices = [299.99, 2199.00, 32980, 279.99, 249.99, 269.99, 359900, 19999];
-      
-      this.priceData = [];
-      const now = new Date();
-      
-      countries.forEach((country, countryIndex) => {
-        for (let i = 9; i >= 0; i--) {
-          const date = new Date(now);
-          date.setDate(date.getDate() - i);
-          
-          // 模拟价格波动
-          const fluctuation = (Math.random() - 0.5) * 0.1; // ±5% 波动
-          const price = basePrices[countryIndex] * (1 + fluctuation);
-          
-          this.priceData.push({
-            id: `${country}-${i}`,
-            countryCode: country,
-            price: price.toFixed(2),
-            createTime: date
-          });
-        }
-      });
-      
-      this.lastUpdateTime = new Date().toLocaleString('zh-CN');
-      this.processAndRenderData();
     },
     processAndRenderData() {
       if (!this.svg || this.priceData.length === 0) return;
